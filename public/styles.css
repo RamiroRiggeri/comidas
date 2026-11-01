@@ -179,6 +179,21 @@ button { cursor: pointer; }
   border: 0; background: transparent; text-align: left;
 }
 .item-main:active { background: var(--azulejo); }
+.drag, .drag-spacer { flex: none; width: 40px; }
+.drag {
+  display: grid; place-items: center; color: var(--salvia);
+  touch-action: none; cursor: grab;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+.drag + .item-main, .drag-spacer + .item-main { padding-left: 2px; }
+.item.is-dragging {
+  position: relative; z-index: 3;
+  background: var(--loza);
+  border-radius: 12px; border-bottom-color: transparent;
+  box-shadow: 0 10px 28px rgba(10, 25, 20, .24);
+}
+.item.is-dragging .drag { cursor: grabbing; color: var(--botella); }
+body.dragging { -webkit-user-select: none; user-select: none; cursor: grabbing; }
 .check {
   flex: none; width: 28px; height: 28px; border-radius: 50%;
   border: 2.5px solid var(--salvia);

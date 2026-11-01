@@ -120,12 +120,19 @@ function parseEntry(text) {
 // ---------- Lista ----------
 const CHECK_SVG =
   '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const DRAG_SVG =
+  '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><g fill="currentColor"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></g></svg>';
 const PENCIL_SVG =
   '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
 
 function rowHtml(item) {
   const cls = ['item', item.checked ? 'is-done' : '', item._pending ? 'is-pending' : ''].join(' ');
+  // Solo lo pendiente se puede reordenar; en el carrito queda un espacio para que todo quede alineado.
+  const handle = item.checked
+    ? '<span class="drag-spacer" aria-hidden="true"></span>'
+    : `<span class="drag" data-drag aria-hidden="true">${DRAG_SVG}</span>`;
   return `<li class="${cls}" data-id="${esc(item.id)}">
+    ${handle}
     <button class="item-main" type="button" data-action="toggle" aria-pressed="${item.checked}">
       <span class="check">${CHECK_SVG}</span>
       <span class="item-text">
@@ -168,7 +175,7 @@ async function refresh({ manual = false } = {}) {
   try {
     const data = await api('GET', '/api/items');
     // si hubo un cambio local mientras tanto, este resultado ya está viejo
-    if (seq === state.mutSeq && state.pending === 0) {
+    if (seq === state.mutSeq && state.pending === 0 && !drag.active) {
       state.items = data.items;
       state.lastSync = Date.now();
       state.syncFailed = false;
@@ -237,7 +244,8 @@ function addItem(text) {
     }
     return;
   }
-  const temp = { id: `tmp-${Date.now()}`, name, qty, checked: false, _pending: true };
+  const maxPos = Math.max(0, ...state.items.map((i) => i.position || 0));
+  const temp = { id: `tmp-${Date.now()}`, name, qty, checked: false, position: maxPos + 1000, _pending: true };
   mutate(
     () => state.items.push(temp),
     async () => {
@@ -275,6 +283,100 @@ function deleteItem(id) {
       toast(`${item.name}: borrado`);
     },
     () => state.items.splice(index, 0, item)
+  );
+}
+
+// ---------- Reordenar arrastrando la manija ----------
+const drag = { active: false };
+
+function sortItems() {
+  state.items.sort((a, b) => a.checked - b.checked || (a.position ?? 0) - (b.position ?? 0));
+}
+
+const pageMid = (el) => el.getBoundingClientRect().top + window.scrollY + el.offsetHeight / 2;
+
+$('todo').addEventListener('pointerdown', (e) => {
+  const handle = e.target.closest('[data-drag]');
+  if (!handle || drag.active) return;
+  const li = handle.closest('.item');
+  const item = findItem(li.dataset.id);
+  if (!item || item._pending) return;
+  e.preventDefault();
+  handle.setPointerCapture(e.pointerId);
+  Object.assign(drag, {
+    active: true, li, id: item.id, pointerId: e.pointerId,
+    startY: e.clientY + window.scrollY, pointerY: e.clientY, startTop: li.offsetTop,
+  });
+  li.classList.add('is-dragging');
+  document.body.classList.add('dragging');
+  navigator.vibrate?.(12);
+  drag.raf = requestAnimationFrame(dragFrame);
+});
+
+$('todo').addEventListener('pointermove', (e) => {
+  if (drag.active && e.pointerId === drag.pointerId) drag.pointerY = e.clientY;
+});
+$('todo').addEventListener('pointerup', (e) => {
+  if (drag.active && e.pointerId === drag.pointerId) endDrag();
+});
+$('todo').addEventListener('pointercancel', (e) => {
+  if (drag.active && e.pointerId === drag.pointerId) endDrag();
+});
+
+function dragFrame() {
+  if (!drag.active) return;
+  // si el dedo llega cerca del borde, la pantalla se desplaza sola
+  const topEdge = document.querySelector('.top').getBoundingClientRect().bottom + 50;
+  const bottomEdge = $('composer').getBoundingClientRect().top - 50;
+  if (drag.pointerY < topEdge) window.scrollBy(0, -10);
+  else if (drag.pointerY > bottomEdge) window.scrollBy(0, 10);
+
+  const list = $('todo');
+  const li = drag.li;
+  const y = drag.pointerY + window.scrollY;
+  let prev = li.previousElementSibling;
+  while (prev && y < pageMid(prev)) {
+    list.insertBefore(li, prev);
+    prev = li.previousElementSibling;
+  }
+  let next = li.nextElementSibling;
+  while (next && y > pageMid(next)) {
+    list.insertBefore(next, li);
+    next = li.nextElementSibling;
+  }
+  li.style.transform = `translateY(${y - drag.startY - (li.offsetTop - drag.startTop)}px)`;
+  drag.raf = requestAnimationFrame(dragFrame);
+}
+
+function endDrag() {
+  drag.active = false;
+  cancelAnimationFrame(drag.raf);
+  drag.li.style.transform = '';
+  drag.li.classList.remove('is-dragging');
+  document.body.classList.remove('dragging');
+
+  const todo = state.items.filter((i) => !i.checked);
+  const ids = [...$('todo').children].map((el) => el.dataset.id);
+  const ordered = ids.map((id) => todo.find((i) => i.id === id)).filter(Boolean);
+  const item = todo.find((i) => i.id === drag.id);
+  const newIndex = ordered.indexOf(item);
+  if (!item || newIndex === todo.indexOf(item)) return render();
+
+  // nueva posición: a mitad de camino entre los vecinos
+  const before = ordered[newIndex - 1];
+  const after = ordered[newIndex + 1];
+  const position = before && after
+    ? (before.position + after.position) / 2
+    : before ? before.position + 1000 : after.position - 1000;
+  const old = item.position;
+  mutate(
+    () => { item.position = position; item._pending = true; sortItems(); },
+    async () => {
+      const { item: saved } = await api('PATCH', `/api/items/${item.id}`, { position });
+      Object.assign(item, saved);
+      delete item._pending;
+    },
+    () => { item.position = old; delete item._pending; sortItems(); }
   );
 }
 

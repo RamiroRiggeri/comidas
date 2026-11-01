@@ -32,6 +32,11 @@ const MIGRATIONS = [
     )`,
     'CREATE INDEX IF NOT EXISTS meals_by_date ON meals (date, slot)',
   ],
+  // v3 — orden manual de la lista (los ítems existentes quedan en el orden en que se cargaron)
+  [
+    'ALTER TABLE items ADD COLUMN position REAL',
+    'UPDATE items SET position = created_at WHERE position IS NULL',
+  ],
 ];
 
 let migrated = null; // se ejecuta una vez por instancia del servidor
@@ -92,7 +97,7 @@ async function readBody(request) {
 const clean = (value, max) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
 // ---------- Lista del súper ----------
-const ITEM_COLUMNS = 'id, name, qty, category, checked, source, created_at, updated_at';
+const ITEM_COLUMNS = 'id, name, qty, category, checked, source, position, created_at, updated_at';
 
 function toItem(row) {
   return { ...row, checked: row.checked === 1 };
@@ -100,7 +105,7 @@ function toItem(row) {
 
 async function listItems(env) {
   const { results } = await env.DB.prepare(
-    `SELECT ${ITEM_COLUMNS} FROM items ORDER BY checked ASC, created_at ASC`
+    `SELECT ${ITEM_COLUMNS} FROM items ORDER BY checked ASC, position ASC, created_at ASC`
   ).all();
   return json({ items: results.map(toItem), now: Date.now() });
 }
@@ -120,12 +125,15 @@ async function createItem(request, env) {
     created_at: now,
     updated_at: now,
   };
-  await env.DB.prepare(
-    `INSERT INTO items (${ITEM_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  // Lo nuevo va al final de la lista.
+  const row = await env.DB.prepare(
+    `INSERT INTO items (${ITEM_COLUMNS})
+     VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1000 FROM items), ?, ?)
+     RETURNING ${ITEM_COLUMNS}`
   )
     .bind(item.id, item.name, item.qty, item.category, item.checked, item.source, item.created_at, item.updated_at)
-    .run();
-  return json({ item: toItem(item) }, 201);
+    .first();
+  return json({ item: toItem(row) }, 201);
 }
 
 async function updateItem(request, env, id) {
@@ -145,6 +153,12 @@ async function updateItem(request, env, id) {
   if ('category' in body) {
     sets.push('category = ?');
     values.push(clean(body.category, 30) || 'Otros');
+  }
+  if ('position' in body) {
+    const position = Number(body.position);
+    if (!Number.isFinite(position)) return fail(400, 'Posición inválida.');
+    sets.push('position = ?');
+    values.push(position);
   }
   if ('checked' in body) {
     sets.push('checked = ?');
