@@ -1,0 +1,13 @@
+{
+  "name": "comidas",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Planificador de comidas semanal + lista del súper compartida (PWA en Cloudflare Workers + D1)",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}

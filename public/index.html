@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Comidas</title>
+  <meta name="description" content="Comidas de la semana y lista del súper compartida.">
+  <meta name="theme-color" content="#1E3B33">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/icons/favicon-64.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700&family=Bricolage+Grotesque:opsz,wdth,wght@12..96,85,600..800&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <!-- Pantalla de clave -->
+  <main id="lock" class="lock" hidden>
+    <img src="/icons/icon-192.png" alt="" width="72" height="72" class="lock-icon">
+    <h1 class="lock-title">Comidas</h1>
+    <p class="lock-text">Escribí la clave de la casa. Se pide una sola vez en este teléfono.</p>
+    <form id="lock-form" class="lock-form" autocomplete="off">
+      <label for="lock-input" class="visually-hidden">Clave de la casa</label>
+      <input id="lock-input" type="password" inputmode="text" placeholder="Clave de la casa" required autocapitalize="off" spellcheck="false">
+      <button type="submit" class="btn-primary">Entrar</button>
+      <p id="lock-error" class="lock-error" role="alert"></p>
+    </form>
+  </main>
+
+  <!-- App -->
+  <div id="app" class="app" hidden>
+    <header class="top">
+      <div class="top-row">
+        <h1 id="screen-title" class="screen-title">Lista del súper</h1>
+        <div class="top-actions">
+          <button id="install-btn" class="chip" type="button" hidden>Instalar</button>
+          <button id="refresh-btn" class="icon-btn" type="button" aria-label="Actualizar">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4.5h-4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="status-row">
+        <span id="count"></span>
+        <span id="synced" class="synced"></span>
+      </div>
+      <div class="tiles" aria-hidden="true"></div>
+    </header>
+
+    <!-- Lista -->
+    <section id="view-lista" class="view">
+      <ul id="todo" class="items" aria-label="Por comprar"></ul>
+      <p id="empty" class="empty" hidden>La lista está vacía. Agregá lo que falta con el campo de abajo.</p>
+      <div id="done-block" class="done-block" hidden>
+        <h2 class="done-title">En el carrito</h2>
+        <ul id="done" class="items items-done" aria-label="En el carrito"></ul>
+        <button id="clear-btn" type="button" class="btn-quiet">Borrar tildados</button>
+      </div>
+    </section>
+
+    <!-- Placeholders de los próximos pasos -->
+    <section id="view-semana" class="view" hidden>
+      <p class="soon">Acá van a planificar los almuerzos y las cenas de la semana. Lo construimos en el próximo paso.</p>
+    </section>
+    <section id="view-recetas" class="view" hidden>
+      <p class="soon">Acá van a quedar las recetas con sus calorías. Llega después del planificador.</p>
+    </section>
+
+    <form id="composer" class="composer" autocomplete="off">
+      <label for="composer-input" class="visually-hidden">Agregar a la lista</label>
+      <input id="composer-input" type="text" placeholder="Ej: 2 kg tomate" enterkeyhint="done" autocapitalize="sentences">
+      <button type="submit" class="add-btn" aria-label="Agregar">
+        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+      </button>
+    </form>
+
+    <nav class="tabs" aria-label="Secciones">
+      <button class="tab" data-tab="semana" type="button">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Semana</span>
+      </button>
+      <button class="tab" data-tab="lista" type="button" aria-current="page">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M4 6h1.5l2 10h10l2-7H7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="19.5" r="1.4" fill="currentColor"/><circle cx="16.5" cy="19.5" r="1.4" fill="currentColor"/></svg>
+        <span>Lista</span>
+      </button>
+      <button class="tab" data-tab="recetas" type="button">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M6 4h10a2 2 0 0 1 2 2v14H8a2 2 0 0 1-2-2V4Zm0 14a2 2 0 0 1 2-2h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        <span>Recetas</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Editar ítem -->
+  <dialog id="edit" class="sheet">
+    <form id="edit-form" method="dialog" class="sheet-form">
+      <h2 class="sheet-title">Editar</h2>
+      <label class="field">
+        <span>Qué</span>
+        <input id="edit-name" type="text" required maxlength="80" autocapitalize="sentences">
+      </label>
+      <label class="field">
+        <span>Cantidad</span>
+        <input id="edit-qty" type="text" maxlength="40" placeholder="Opcional">
+      </label>
+      <div class="sheet-actions">
+        <button id="edit-delete" type="button" class="btn-danger">Borrar</button>
+        <span class="spacer"></span>
+        <button value="cancel" type="button" id="edit-cancel" class="btn-quiet">Cancelar</button>
+        <button value="save" type="submit" class="btn-primary">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

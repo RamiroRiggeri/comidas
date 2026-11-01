@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "comidas",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-01",
+
+  // La interfaz (HTML/CSS/JS/íconos) se sirve como archivos estáticos.
+  // Todo lo que no es un archivo (las rutas /api/...) lo atiende src/worker.js.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+
+  // Base de datos. El database_id se completa cuando la creemos en Cloudflare.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "comidas",
+      "database_id": "REEMPLAZAR_CON_EL_ID_DE_D1"
+    }
+  ]
+
+  // Secretos (no van en este archivo, se cargan en el panel de Cloudflare):
+  //   APP_KEY            -> la clave de la casa
+  //   ANTHROPIC_API_KEY  -> se agrega en el paso 2 (recetas con IA)
+}
