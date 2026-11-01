@@ -1,4 +1,4 @@
-# Comidas
+# Planimorfi
 
 App web instalable (PWA) para planificar los almuerzos y las cenas de la semana entre dos personas y armar la lista del súper compartida.
 

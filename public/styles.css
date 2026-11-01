@@ -11,6 +11,8 @@
   --junta: #C9DAD3;
   --tile-a: #CFE3DB;
   --tile-b: #B3D1C5;
+  --barra: #1E3B33;
+  --barra-texto: #E6F0EC;
 
   --font-ui: 'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', system-ui, sans-serif;
   --font-display: 'Bricolage Grotesque', var(--font-ui);
@@ -23,8 +25,10 @@
   color-scheme: light;
 }
 
+/* Oscuro: cuando el teléfono lo pide (salvo que en la app se haya elegido claro)
+   o cuando se elige a mano con el botón. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --azulejo: #10211C;
     --loza: #172E27;
     --botella: #E8F1ED;
@@ -35,8 +39,25 @@
     --junta: #2A463E;
     --tile-a: #1A3530;
     --tile-b: #224239;
+    --barra: #0B1814;
+  --barra-texto: #E8F1ED;
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --azulejo: #10211C;
+  --loza: #172E27;
+  --botella: #E8F1ED;
+  --salvia: #9AB3AA;
+  --tomate: #FF6B57;
+  --tomate-press: #E65644;
+  --albahaca: #63C48D;
+  --junta: #2A463E;
+  --tile-a: #1A3530;
+  --tile-b: #224239;
+  --barra: #0B1814;
+  --barra-texto: #E8F1ED;
+  color-scheme: dark;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -256,10 +277,7 @@ button { cursor: pointer; }
   height: calc(var(--bar-h) + var(--safe-b));
   padding-bottom: var(--safe-b);
   display: grid; grid-template-columns: repeat(3, 1fr);
-  background: var(--botella); color: var(--azulejo);
-}
-@media (prefers-color-scheme: dark) {
-  .tabs { background: #0B1814; color: var(--botella); }
+  background: var(--barra); color: var(--barra-texto);
 }
 .tab {
   border: 0; background: transparent; opacity: .62;
@@ -268,6 +286,11 @@ button { cursor: pointer; }
 }
 .tab[aria-current="page"] { opacity: 1; }
 .tab[aria-current="page"] span { border-bottom: 2.5px solid var(--tomate); }
+
+/* ---------- Botón de tema ---------- */
+#theme-btn .ico-sun { display: none; }
+#theme-btn.is-dark .ico-sun { display: block; }
+#theme-btn.is-dark .ico-moon { display: none; }
 
 /* ---------- Hoja de edición ---------- */
 .sheet {
@@ -304,6 +327,12 @@ button { cursor: pointer; }
   border: 0; background: var(--tomate); color: #fff; font-weight: 700;
 }
 .btn-primary:active { background: var(--tomate-press); }
+.confirm-text { margin: -4px 0 4px; color: var(--salvia); max-width: 40ch; }
+.btn-destructive {
+  height: 50px; padding: 0 22px; border-radius: 25px;
+  border: 0; background: var(--tomate); color: #fff; font-weight: 700;
+}
+.btn-destructive:active { background: var(--tomate-press); }
 .btn-danger {
   height: 50px; padding: 0 12px; border: 0; background: transparent;
   color: var(--tomate); font-weight: 700;

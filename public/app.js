@@ -278,11 +278,33 @@ function deleteItem(id) {
   );
 }
 
-function clearChecked() {
+// Hoja de confirmación propia (reemplaza al confirm() del navegador). Devuelve true si confirman.
+function ask({ title, text, ok = 'Borrar' }) {
+  const dlg = $('confirm');
+  $('confirm-title').textContent = title;
+  $('confirm-text').textContent = text;
+  $('confirm-ok').textContent = ok;
+  dlg.returnValue = '';
+  dlg.showModal();
+  $('confirm-ok').focus();
+  return new Promise((resolve) => {
+    dlg.addEventListener('close', () => resolve(dlg.returnValue === 'ok'), { once: true });
+  });
+}
+$('confirm').addEventListener('click', (e) => {
+  if (e.target === $('confirm')) $('confirm').close('cancel'); // tocar fuera cancela
+});
+
+async function clearChecked() {
   const done = state.items.filter((i) => i.checked);
   if (!done.length) return;
-  const label = done.length === 1 ? 'el tildado' : `los ${done.length} tildados`;
-  if (!confirm(`¿Borrar ${label} de la lista?`)) return;
+  const n = done.length;
+  const okay = await ask({
+    title: n === 1 ? '¿Borrar el tildado?' : `¿Borrar los ${n} tildados?`,
+    text: 'Se sacan de la lista lo que ya está en el carrito. Lo pendiente queda como está.',
+    ok: 'Borrar tildados',
+  });
+  if (!okay) return;
   const before = state.items.slice();
   mutate(
     () => (state.items = state.items.filter((i) => !i.checked)),
@@ -307,11 +329,15 @@ for (const listId of ['todo', 'done']) {
 
 $('clear-btn').addEventListener('click', clearChecked);
 
-function clearAll() {
+async function clearAll() {
   const n = state.items.length;
   if (!n) return;
-  const label = n === 1 ? 'el único ítem' : `los ${n} ítems`;
-  if (!confirm(`¿Borrar toda la lista (${label})? No se puede deshacer.`)) return;
+  const okay = await ask({
+    title: '¿Borrar toda la lista?',
+    text: `Se borran ${n === 1 ? 'el único ítem' : `los ${n} ítems`}, tildados o no, en los dos teléfonos. No se puede deshacer.`,
+    ok: 'Borrar todo',
+  });
+  if (!okay) return;
   const before = state.items.slice();
   mutate(
     () => (state.items = []),
@@ -610,6 +636,27 @@ function toast(text) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
 }
+
+// ---------- Tema claro / oscuro ----------
+// Arranca siguiendo al teléfono; si se toca el botón, queda fijo en este teléfono.
+const THEME_KEY = 'planimorfi.tema';
+const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+const currentTheme = () => document.documentElement.dataset.theme || (darkQuery.matches ? 'dark' : 'light');
+
+function paintThemeButton() {
+  const dark = currentTheme() === 'dark';
+  $('theme-btn').classList.toggle('is-dark', dark);
+  $('theme-btn').setAttribute('aria-label', dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
+  document.querySelector('meta[name=theme-color]').content = dark ? '#0B1814' : '#1E3B33';
+}
+$('theme-btn').addEventListener('click', () => {
+  const next = currentTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem(THEME_KEY, next); } catch {}
+  paintThemeButton();
+});
+darkQuery.addEventListener('change', paintThemeButton);
+paintThemeButton();
 
 // ---------- Instalar ----------
 window.addEventListener('beforeinstallprompt', (e) => {

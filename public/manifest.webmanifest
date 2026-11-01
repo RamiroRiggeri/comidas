@@ -1,7 +1,7 @@
 {
-  "name": "Comidas",
-  "short_name": "Comidas",
-  "description": "Comidas de la semana y lista del súper compartida.",
+  "name": "Planimorfi",
+  "short_name": "Planimorfi",
+  "description": "Planificador de comidas de la semana y lista del súper compartida.",
   "lang": "es-AR",
   "start_url": "/",
   "scope": "/",
