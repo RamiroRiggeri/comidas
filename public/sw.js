@@ -2,7 +2,7 @@
 // Estrategia: primero la red (así cada cambio publicado llega enseguida), y si no hay red, lo guardado.
 // Los datos (/api/...) nunca se guardan acá: siempre van al servidor.
 
-const CACHE = 'comidas-v1';
+const CACHE = 'comidas-v2';
 const SHELL = ['/', '/index.html', '/app.js', '/styles.css', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', (event) => {

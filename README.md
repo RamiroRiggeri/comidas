@@ -25,7 +25,7 @@ App web instalable (PWA) para planificar los almuerzos y las cenas de la semana 
 ## Plan
 
 - [x] **Paso 0** — Infraestructura, instalación, clave de la casa y lista del súper manual compartida.
-- [ ] **Paso 1** — Planificador semanal: 7 días × almuerzo/cena, cargar, editar, borrar y mover comidas.
+- [x] **Paso 1** — Planificador semanal: 7 días × almuerzo/cena, cargar, editar, borrar y mover comidas.
 - [ ] **Paso 2** — "Quiero hacer X" → receta estructurada (ingredientes con cantidad, unidad y sector; pasos; kcal por porción). Requiere el secreto `ANTHROPIC_API_KEY`.
 - [ ] **Paso 3** — Lista desde la semana: consolidar ingredientes, pasar a unidades de compra, agrupar por sector, separar despensa y mostrar frecuentes.
 - [ ] **Paso 4** — Sugerencias de la semana.
@@ -43,6 +43,11 @@ Todas las rutas requieren el header `x-clave`.
 | PATCH | `/api/items/:id` | Edita `{name?, qty?, checked?}` |
 | DELETE | `/api/items/:id` | Borra |
 | POST | `/api/items/clear-checked` | Borra todo lo tildado |
+| POST | `/api/items/clear-all` | Borra toda la lista |
+| GET | `/api/meals?from=| POST | `/api/items/clear-checked` | Borra todo lo tildado |to=` | Comidas entre dos fechas (YYYY-MM-DD) |
+| POST | `/api/meals` | Crea `{date, slot, title, notes?}` (409 si el lugar está ocupado) |
+| PATCH | `/api/meals/:id` | Edita y/o mueve; si el destino está ocupado, intercambia |
+| DELETE | `/api/meals/:id` | Borra |
 
 ## Desarrollo local
 

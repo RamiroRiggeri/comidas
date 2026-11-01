@@ -18,6 +18,20 @@ const MIGRATIONS = [
       updated_at  INTEGER NOT NULL
     )`,
   ],
+  // v2 — planificador semanal (una comida por día y momento)
+  [
+    `CREATE TABLE IF NOT EXISTS meals (
+      id          TEXT PRIMARY KEY,
+      date        TEXT NOT NULL,
+      slot        TEXT NOT NULL,
+      title       TEXT NOT NULL,
+      notes       TEXT NOT NULL DEFAULT '',
+      recipe_id   TEXT,
+      created_at  INTEGER NOT NULL,
+      updated_at  INTEGER NOT NULL
+    )`,
+    'CREATE INDEX IF NOT EXISTS meals_by_date ON meals (date, slot)',
+  ],
 ];
 
 let migrated = null; // se ejecuta una vez por instancia del servidor
@@ -157,6 +171,102 @@ async function clearChecked(env) {
   return json({ deleted: meta.changes });
 }
 
+// ---------- Planificador ----------
+const MEAL_COLUMNS = 'id, date, slot, title, notes, recipe_id, created_at, updated_at';
+const SLOTS = ['almuerzo', 'cena'];
+const isDate = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s));
+
+async function listMeals(env, url) {
+  const from = url.searchParams.get('from');
+  const to = url.searchParams.get('to');
+  if (!isDate(from) || !isDate(to)) return fail(400, 'Faltan las fechas de la semana.');
+  const { results } = await env.DB.prepare(
+    `SELECT ${MEAL_COLUMNS} FROM meals WHERE date BETWEEN ? AND ? ORDER BY date, slot`
+  )
+    .bind(from, to)
+    .all();
+  return json({ meals: results, now: Date.now() });
+}
+
+const mealAt = (env, date, slot) =>
+  env.DB.prepare(`SELECT ${MEAL_COLUMNS} FROM meals WHERE date = ? AND slot = ?`).bind(date, slot).first();
+
+async function createMeal(request, env) {
+  const body = await readBody(request);
+  const title = clean(body.title, 100);
+  if (!title) return fail(400, 'Escribí qué van a comer.');
+  if (!isDate(body.date) || !SLOTS.includes(body.slot)) return fail(400, 'Día o momento inválido.');
+  if (await mealAt(env, body.date, body.slot)) return fail(409, 'Ese día ya tiene una comida cargada en ese momento.');
+  const now = Date.now();
+  const meal = {
+    id: crypto.randomUUID(),
+    date: body.date,
+    slot: body.slot,
+    title,
+    notes: clean(body.notes, 300),
+    recipe_id: null,
+    created_at: now,
+    updated_at: now,
+  };
+  await env.DB.prepare(`INSERT INTO meals (${MEAL_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(meal.id, meal.date, meal.slot, meal.title, meal.notes, meal.recipe_id, meal.created_at, meal.updated_at)
+    .run();
+  return json({ meal }, 201);
+}
+
+// Editar y/o mover. Si el destino está ocupado, las dos comidas se intercambian.
+async function updateMeal(request, env, id) {
+  const body = await readBody(request);
+  const meal = await env.DB.prepare(`SELECT ${MEAL_COLUMNS} FROM meals WHERE id = ?`).bind(id).first();
+  if (!meal) return fail(404, 'Esa comida ya no está en la semana.');
+
+  const next = { ...meal };
+  if ('title' in body) {
+    next.title = clean(body.title, 100);
+    if (!next.title) return fail(400, 'El nombre no puede quedar vacío.');
+  }
+  if ('notes' in body) next.notes = clean(body.notes, 300);
+  if ('date' in body) {
+    if (!isDate(body.date)) return fail(400, 'Día inválido.');
+    next.date = body.date;
+  }
+  if ('slot' in body) {
+    if (!SLOTS.includes(body.slot)) return fail(400, 'Momento inválido.');
+    next.slot = body.slot;
+  }
+  next.updated_at = Date.now();
+
+  const moved = next.date !== meal.date || next.slot !== meal.slot;
+  const other = moved ? await mealAt(env, next.date, next.slot) : null;
+
+  const stmts = [
+    env.DB.prepare('UPDATE meals SET title = ?, notes = ?, date = ?, slot = ?, updated_at = ? WHERE id = ?').bind(
+      next.title, next.notes, next.date, next.slot, next.updated_at, id
+    ),
+  ];
+  if (other) {
+    stmts.push(
+      env.DB.prepare('UPDATE meals SET date = ?, slot = ?, updated_at = ? WHERE id = ?').bind(
+        meal.date, meal.slot, next.updated_at, other.id
+      )
+    );
+  }
+  await env.DB.batch(stmts);
+  const changed = [next];
+  if (other) changed.push({ ...other, date: meal.date, slot: meal.slot, updated_at: next.updated_at });
+  return json({ meals: changed, swapped: !!other });
+}
+
+async function deleteMeal(env, id) {
+  const { meta } = await env.DB.prepare('DELETE FROM meals WHERE id = ?').bind(id).run();
+  return json({ deleted: meta.changes });
+}
+
+async function clearAll(env) {
+  const { meta } = await env.DB.prepare('DELETE FROM items').run();
+  return json({ deleted: meta.changes });
+}
+
 // ---------- Router ----------
 async function handleApi(request, env, url) {
   if (!env.APP_KEY) return fail(500, 'Falta configurar la clave de la casa (APP_KEY) en Cloudflare.');
@@ -174,11 +284,22 @@ async function handleApi(request, env, url) {
     if (method === 'POST') return createItem(request, env);
   }
   if (path === '/api/items/clear-checked' && method === 'POST') return clearChecked(env);
+  if (path === '/api/items/clear-all' && method === 'POST') return clearAll(env);
 
   const match = path.match(/^\/api\/items\/([0-9a-f-]{36})$/);
   if (match) {
     if (method === 'PATCH') return updateItem(request, env, match[1]);
     if (method === 'DELETE') return deleteItem(env, match[1]);
+  }
+
+  if (path === '/api/meals') {
+    if (method === 'GET') return listMeals(env, url);
+    if (method === 'POST') return createMeal(request, env);
+  }
+  const mealMatch = path.match(/^\/api\/meals\/([0-9a-f-]{36})$/);
+  if (mealMatch) {
+    if (method === 'PATCH') return updateMeal(request, env, mealMatch[1]);
+    if (method === 'DELETE') return deleteMeal(env, mealMatch[1]);
   }
 
   return fail(404, 'Ruta inexistente.');

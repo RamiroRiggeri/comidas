@@ -79,6 +79,15 @@ async function unlock(key) {
   refresh();
 }
 
+$('lock-eye').addEventListener('click', () => {
+  const input = $('lock-input');
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  $('lock-eye').setAttribute('aria-pressed', String(show));
+  $('lock-eye').setAttribute('aria-label', show ? 'Ocultar la clave' : 'Mostrar la clave');
+  input.focus();
+});
+
 $('lock-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const key = $('lock-input').value.trim();
@@ -135,6 +144,7 @@ function render() {
   $('done').innerHTML = done.map(rowHtml).join('');
   $('empty').hidden = state.items.length > 0;
   $('done-block').hidden = done.length === 0;
+  $('clear-all-block').hidden = state.items.length === 0;
   $('count').textContent = todo.length ? `${todo.length} por comprar` : 'Nada por comprar';
   renderSynced();
 }
@@ -297,6 +307,23 @@ for (const listId of ['todo', 'done']) {
 
 $('clear-btn').addEventListener('click', clearChecked);
 
+function clearAll() {
+  const n = state.items.length;
+  if (!n) return;
+  const label = n === 1 ? 'el único ítem' : `los ${n} ítems`;
+  if (!confirm(`¿Borrar toda la lista (${label})? No se puede deshacer.`)) return;
+  const before = state.items.slice();
+  mutate(
+    () => (state.items = []),
+    async () => {
+      await api('POST', '/api/items/clear-all');
+      toast('Lista borrada');
+    },
+    () => (state.items = before)
+  );
+}
+$('clear-all-btn').addEventListener('click', clearAll);
+
 $('composer').addEventListener('submit', (e) => {
   e.preventDefault();
   const input = $('composer-input');
@@ -334,6 +361,202 @@ $('edit').addEventListener('click', (e) => {
   if (e.target === $('edit')) $('edit').close();
 });
 
+// ---------- Semana ----------
+const SLOT_NAMES = { almuerzo: 'Almuerzo', cena: 'Cena' };
+const week = { start: mondayOf(new Date()), meals: [], loadedFor: null, editing: null };
+
+function ymd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function addDays(d, n) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+function mondayOf(d) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return addDays(x, -((x.getDay() + 6) % 7));
+}
+function fromYmd(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const fmtWeekday = new Intl.DateTimeFormat('es-AR', { weekday: 'long' });
+const fmtMonth = new Intl.DateTimeFormat('es-AR', { month: 'long' });
+const dayName = (d) => `${cap(fmtWeekday.format(d))} ${d.getDate()}`;
+
+function rangeLabel(start) {
+  const end = addDays(start, 6);
+  const m1 = fmtMonth.format(start);
+  const m2 = fmtMonth.format(end);
+  return m1 === m2
+    ? `${start.getDate()} al ${end.getDate()} de ${m2}`
+    : `${start.getDate()} de ${m1} al ${end.getDate()} de ${m2}`;
+}
+
+async function loadWeek({ manual = false } = {}) {
+  if (!state.key) return;
+  const from = ymd(week.start);
+  const to = ymd(addDays(week.start, 6));
+  const btn = $('refresh-btn');
+  if (manual) btn.classList.add('spinning');
+  try {
+    const data = await api('GET', `/api/meals?from=${from}&to=${to}`);
+    if (ymd(week.start) !== from) return; // cambiaron de semana mientras cargaba
+    week.meals = data.meals;
+    week.loadedFor = from;
+    renderWeek();
+  } catch (err) {
+    handleError(err);
+  } finally {
+    if (manual) setTimeout(() => btn.classList.remove('spinning'), 400);
+  }
+}
+
+function renderWeek() {
+  const today = ymd(new Date());
+  const isCurrent = ymd(week.start) === ymd(mondayOf(new Date()));
+  $('week-range').textContent = rangeLabel(week.start);
+  $('week-today').hidden = isCurrent;
+
+  const loaded = week.loadedFor === ymd(week.start);
+  let html = '';
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(week.start, i);
+    const key = ymd(d);
+    html += `<section class="day${key < today ? ' is-past' : ''}" aria-label="${esc(dayName(d))}">
+      <h2 class="day-head">${esc(dayName(d))}${key === today ? '<span class="today">Hoy</span>' : ''}</h2>`;
+    for (const slot of ['almuerzo', 'cena']) {
+      const meal = loaded ? week.meals.find((m) => m.date === key && m.slot === slot) : null;
+      html += `<button type="button" class="slot${meal?._pending ? ' is-pending' : ''}" data-date="${key}" data-slot="${slot}">
+        <span class="slot-label">${SLOT_NAMES[slot]}</span>
+        ${
+          meal
+            ? `<span class="slot-meal"><span class="slot-title">${esc(meal.title)}</span>${
+                meal.notes ? `<span class="slot-notes">${esc(meal.notes)}</span>` : ''
+              }</span>`
+            : `<span class="slot-empty">${loaded ? 'Agregar' : '…'}</span>`
+        }
+      </button>`;
+    }
+    html += '</section>';
+  }
+  $('week').innerHTML = html;
+}
+
+function shiftWeek(n) {
+  week.start = addDays(week.start, 7 * n);
+  week.meals = [];
+  renderWeek();
+  loadWeek();
+}
+
+$('week-prev').addEventListener('click', () => shiftWeek(-1));
+$('week-next').addEventListener('click', () => shiftWeek(1));
+$('week-today').addEventListener('click', () => {
+  week.start = mondayOf(new Date());
+  week.meals = [];
+  renderWeek();
+  loadWeek();
+});
+
+$('week').addEventListener('click', (e) => {
+  const btn = e.target.closest('.slot');
+  if (!btn || week.loadedFor !== ymd(week.start)) return;
+  const meal = week.meals.find((m) => m.date === btn.dataset.date && m.slot === btn.dataset.slot);
+  if (meal?._pending) return;
+  openMeal(btn.dataset.date, btn.dataset.slot, meal);
+});
+
+function openMeal(date, slot, meal) {
+  week.editing = { date, slot, meal: meal || null };
+  $('meal-title').textContent = `${dayName(fromYmd(date))}, ${SLOT_NAMES[slot].toLowerCase()}`;
+  $('meal-name').value = meal?.title || '';
+  $('meal-notes').value = meal?.notes || '';
+  $('meal-delete').hidden = !meal;
+  $('meal-move').hidden = !meal;
+  if (meal) {
+    // opciones: esta semana y la siguiente
+    let opts = '';
+    for (let i = 0; i < 14; i++) {
+      const d = addDays(week.start, i);
+      const key = ymd(d);
+      opts += `<option value="${key}"${key === date ? ' selected' : ''}>${esc(dayName(d))}${
+        i === 7 ? ' (sem. siguiente)' : ''
+      }</option>`;
+    }
+    $('meal-date').innerHTML = opts;
+    $('meal-slot').value = slot;
+  }
+  updateSwapHint();
+  $('meal').showModal();
+  if (!meal) $('meal-name').focus();
+}
+
+function updateSwapHint() {
+  const ed = week.editing;
+  const hint = $('meal-swap-hint');
+  if (!ed?.meal) return (hint.hidden = true);
+  const date = $('meal-date').value;
+  const slot = $('meal-slot').value;
+  const other =
+    (date !== ed.date || slot !== ed.slot) && week.meals.find((m) => m.date === date && m.slot === slot);
+  hint.hidden = !other;
+  if (other) hint.textContent = `Ahí ya está "${other.title}". Van a intercambiar lugares.`;
+}
+$('meal-date').addEventListener('change', updateSwapHint);
+$('meal-slot').addEventListener('change', updateSwapHint);
+
+$('meal-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const ed = week.editing;
+  const title = $('meal-name').value.trim();
+  if (!title || !ed) return;
+  const notes = $('meal-notes').value.trim();
+  $('meal').close();
+
+  try {
+    if (!ed.meal) {
+      const temp = { id: `tmp-${Date.now()}`, date: ed.date, slot: ed.slot, title, notes, _pending: true };
+      week.meals.push(temp);
+      renderWeek();
+      await api('POST', '/api/meals', { date: ed.date, slot: ed.slot, title, notes });
+    } else {
+      const date = ed.meal ? $('meal-date').value : ed.date;
+      const slot = ed.meal ? $('meal-slot').value : ed.slot;
+      Object.assign(ed.meal, { title, notes, _pending: true });
+      renderWeek();
+      const res = await api('PATCH', `/api/meals/${ed.meal.id}`, { title, notes, date, slot });
+      const outside = date < ymd(week.start) || date > ymd(addDays(week.start, 6));
+      if (res.swapped) toast('Comidas intercambiadas');
+      else if (outside) toast(`${title}: movida a la semana siguiente`);
+    }
+  } catch (err) {
+    handleError(err);
+  }
+  loadWeek();
+});
+
+$('meal-delete').addEventListener('click', async () => {
+  const meal = week.editing?.meal;
+  if (!meal) return;
+  $('meal').close();
+  week.meals = week.meals.filter((m) => m !== meal);
+  renderWeek();
+  try {
+    await api('DELETE', `/api/meals/${meal.id}`);
+    toast(`${meal.title}: borrada`);
+  } catch (err) {
+    handleError(err);
+  }
+  loadWeek();
+});
+$('meal-cancel').addEventListener('click', () => $('meal').close());
+$('meal').addEventListener('click', (e) => {
+  if (e.target === $('meal')) $('meal').close();
+});
+
 // ---------- Pestañas ----------
 const TITLES = { semana: 'Semana', lista: 'Lista del súper', recetas: 'Recetas' };
 
@@ -347,8 +570,15 @@ function showTab(tab) {
   $('screen-title').textContent = TITLES[tab];
   const isList = tab === 'lista';
   $('composer').hidden = !isList;
-  document.querySelector('.status-row').hidden = !isList;
-  if (isList) refresh();
+  $('status-row').hidden = !isList;
+  $('week-nav').hidden = tab !== 'semana';
+  if (tab === 'semana') renderWeek();
+  refreshCurrent();
+}
+
+function refreshCurrent(opts) {
+  if (state.tab === 'lista') return refresh(opts);
+  if (state.tab === 'semana') return loadWeek(opts);
 }
 
 for (const btn of document.querySelectorAll('.tab')) {
@@ -356,7 +586,7 @@ for (const btn of document.querySelectorAll('.tab')) {
 }
 
 // ---------- Refresco ----------
-$('refresh-btn').addEventListener('click', () => refresh({ manual: true }));
+$('refresh-btn').addEventListener('click', () => refreshCurrent({ manual: true }));
 
 setInterval(() => {
   if (state.key && state.tab === 'lista' && document.visibilityState === 'visible') refresh();
@@ -365,7 +595,10 @@ setInterval(() => {
 setInterval(renderSynced, 1000);
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') refresh();
+  if (document.visibilityState !== 'visible') return;
+  // si la app quedó abierta de un día para otro, que "Hoy" se actualice
+  if (state.tab === 'semana') renderWeek();
+  refreshCurrent();
 });
 
 // ---------- Aviso ----------
