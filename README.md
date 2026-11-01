@@ -44,7 +44,7 @@ Todas las rutas requieren el header `x-clave`.
 | DELETE | `/api/items/:id` | Borra |
 | POST | `/api/items/clear-checked` | Borra todo lo tildado |
 | POST | `/api/items/clear-all` | Borra toda la lista |
-| GET | `/api/meals?from=| POST | `/api/items/clear-checked` | Borra todo lo tildado |to=` | Comidas entre dos fechas (YYYY-MM-DD) |
+| GET | `/api/meals?from=YYYY-MM-DD&to=YYYY-MM-DD` | Comidas entre dos fechas |
 | POST | `/api/meals` | Crea `{date, slot, title, notes?}` (409 si el lugar está ocupado) |
 | PATCH | `/api/meals/:id` | Edita y/o mueve; si el destino está ocupado, intercambia |
 | DELETE | `/api/meals/:id` | Borra |
