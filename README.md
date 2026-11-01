@@ -26,8 +26,13 @@ App web instalable (PWA) para planificar los almuerzos y las cenas de la semana 
 
 - [x] **Paso 0** — Infraestructura, instalación, clave de la casa y lista del súper manual compartida.
 - [x] **Paso 1** — Planificador semanal: 7 días × almuerzo/cena, cargar, editar, borrar y mover comidas.
-- [ ] **Paso 2** — "Quiero hacer X" → receta estructurada (ingredientes con cantidad, unidad y sector; pasos; kcal por porción). Requiere el secreto `ANTHROPIC_API_KEY`.
-- [ ] **Paso 3** — Lista desde la semana: consolidar ingredientes, pasar a unidades de compra, agrupar por sector, separar despensa y mostrar frecuentes.
+- [ ] **Paso 2** — Ingredientes por plato (cantidad, unidad y sector; kcal por porción opcional). **Sin pasos de preparación:** los platos son simples (ej. "milanesas con puré") y el objetivo es saber qué comprar, no aprender a cocinar. Se cargan a mano; un botón opcional "Completar con IA" los sugiere desde el nombre del plato (requiere `ANTHROPIC_API_KEY`). Los ingredientes quedan guardados por plato para reusarlos cuando se repite.
+- [ ] **Paso 3** — Lista desde la semana: juntar los ingredientes de los platos de la semana, **revisar qué ya hay en casa (tildar "tengo") y mandar a la lista del súper solo lo que falta**. Consolidar repetidos, pasar a unidades de compra, agrupar por sector y mostrar frecuentes.
+
+### Pendientes chicos
+- Los domingos, abrir directamente en la semana siguiente (pospuesto por Ramiro).
+- Límite de intentos de clave por minuto.
+- Refresco automático de la semana (hoy solo la lista se refresca cada 10 s), si en el uso real hace falta.
 - [ ] **Paso 4** — Sugerencias de la semana.
 - [ ] **Paso 5** — Recetario de favoritos, kcal totales por día y opción de repetir una semana.
 
