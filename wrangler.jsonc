@@ -4,6 +4,12 @@
   "main": "src/worker.js",
   "compatibility_date": "2026-10-01",
 
+  // Publica la app en comidas.<cuenta>.workers.dev
+  "workers_dev": true,
+
+  // Registros de errores en el panel de Cloudflare (Observability)
+  "observability": { "enabled": true },
+
   // La interfaz (HTML/CSS/JS/íconos) se sirve como archivos estáticos.
   // Todo lo que no es un archivo (las rutas /api/...) lo atiende src/worker.js.
   "assets": {
